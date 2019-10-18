@@ -120,7 +120,7 @@ class ST_CriticalCss {
             $this->request_critical();
 
             //IF use stale, use stale until new is generated
-            if($this->get_opt('use_stale')) {
+            if($cache_status === 'stale' && $this->get_opt('use_stale')) {
                 $this->do_critical();
             }
 
