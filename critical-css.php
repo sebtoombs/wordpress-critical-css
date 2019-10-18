@@ -25,6 +25,9 @@ class ST_CriticalCss {
     private $opts;
     private $_defaults;
 
+
+    private $api_url = 'https://critical-css-gen.herokuapp.com/critical';
+
     public function __construct() {
 
         //TODO load opts from wp
@@ -210,7 +213,7 @@ class ST_CriticalCss {
 
         $url = $this->get_url();
         //$response = wp_remote_post('https://critical-css-gen.herokuapp.com/critical', [//'http://localhost:8000/critical',[
-        $response = wp_remote_post('http://localhost:8000/critical',[
+        $response = wp_remote_post($this->api_url,[
             'method' => 'POST',
             'timeout' => 60,
             'redirection' => 5,
