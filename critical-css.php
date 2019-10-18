@@ -32,11 +32,16 @@ class ST_CriticalCss {
             'cache_time'=>0, //time in seconds eg 5 minutes: 300 or 0 for infinite
             'use_stale'=>true,
             'api_key'=>false,
-            'ignore_styles'=>[]
+            'ignore_styles'=>[],
+            'use_uncritical'=>true
         ];
         $opts = [
             'api_key'=>'dbe30568-cae1-4169-a5d2-2a724a6725b1',
-            'ignore_styles'=>['wp-content/themes/storefront/style.css']
+            'ignore_styles'=>[
+                'wp-content/themes/storefront/style.css',
+                'https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,300,300italic,400italic,600,700,900&subset=latin%2Clatin-ext',
+                //'wp-content/themes/storefront/assets/css/base/icons.css'
+            ]
         ];
         $this->opts = array_merge($this->_defaults, $opts); //TODO load in opts here
 
@@ -88,7 +93,12 @@ class ST_CriticalCss {
             return;
         }
 
-        $this->save_to_cache($data['css'], $data['url']);
+        if(isset($data['css']['critical'])) {
+            $this->save_to_cache($data['css']['critical'], ['url'=>$data['url']]);
+        }
+        if(isset($data['css']['uncritical'])) {
+            $this->save_to_cache($data['css']['uncritical'], ['url'=>$data['url'], 'uncritical'=>true]);
+        }
         header("HTTP/1.0 200 OK");
         echo 'OK';
         exit;
@@ -127,8 +137,20 @@ class ST_CriticalCss {
     public function do_critical() {
         // If in cache, print critical
         $this->print_critical();
+
+        $args = [];
+        if($this->get_opt('use_uncritical')) {
+            $uncritical_cache_file = $this->get_cache_file_full($this->get_cache_file_name(true));
+            $exists = file_exists($uncritical_cache_file);
+
+            if($exists) {
+                $args['uncritical'] = $uncritical_cache_file;
+            }
+        }
+
         // and defer other css
-        $this->defer_stylesheets();
+        $this->defer_stylesheets($args);
+
     }
 
     public function check_cache_status() {
@@ -150,9 +172,10 @@ class ST_CriticalCss {
         return $url;
     }
 
-    public function get_cache_file_name() {
+    public function get_cache_file_name($uncritical=false) {
         $url = $this->get_url();
         $file_name = $this->sanitise_file_name($url);
+        if($uncritical) $file_name .= '.uncritical';
         $file_name .= '.css';
         return $file_name;
     }
@@ -181,11 +204,13 @@ class ST_CriticalCss {
 
         if(!$this->get_opt('api_key')) {
             //TODO log?
+            $this->log('Missing API Key');
             return;
         }
 
         $url = $this->get_url();
-        $response = wp_remote_post('https://critical-css-gen.herokuapp.com/critical', [//'http://localhost:8000/critical',[
+        //$response = wp_remote_post('https://critical-css-gen.herokuapp.com/critical', [//'http://localhost:8000/critical',[
+        $response = wp_remote_post('http://localhost:8000/critical',[
             'method' => 'POST',
             'timeout' => 60,
             'redirection' => 5,
@@ -217,10 +242,18 @@ class ST_CriticalCss {
         $this->save_to_cache($critical_css['css']);*/
     }
 
-    public function save_to_cache($css, $url=null) {
+    public function save_to_cache($css, $args=null) {
+        $args = is_null($args) ? [] : $args;
+
         $file_name = null;
-        if($url !== null) {
-            $file_name = $this->sanitise_file_name($url) . '.css';
+        if(!empty($args['url'])) {
+            $file_name = $this->sanitise_file_name($args['url']);
+        }
+        if(!empty($args['uncritical']) && $file_name) {
+            $file_name .= '.uncritical';
+        }
+        if($file_name) {
+            $file_name .='.css';
         }
         //Save to cache
         file_put_contents($this->get_cache_file_full($file_name), $css, LOCK_EX);
@@ -228,6 +261,9 @@ class ST_CriticalCss {
 
     public function print_critical() {
         $cache_file = $this->get_cache_file_full();
+        $exists = file_exists($cache_file);
+        if(!$exists) return; //TODO maybe log?
+
         $critical_css = file_get_contents($cache_file); //TODO check this
         ?>
         <!-- INLINE CRITICAL CSS -->
@@ -238,12 +274,19 @@ class ST_CriticalCss {
     }
 
 
-    public function defer_stylesheets() {
+    public function defer_stylesheets($args=null) {
         global $wp_styles;
+
+        if(is_null($args)) $args = [];
 
         //print_r($wp_styles);
 
-        $ignore_styles = $this->get_opt('ignore_styles');
+        $ignore_admin = [
+            'wp-includes/css/admin-bar.css'
+        ];
+
+        $ignore_styles = array_merge($ignore_admin, $this->get_opt('ignore_styles'));
+        //echo '<!-- IGNORE: '.print_r($ignore_styles, true). '-->';
 
         //Collect any inline styles and print them later
         $inline_styles = "";
@@ -263,7 +306,22 @@ class ST_CriticalCss {
                     $src = home_url($src);
                 }
 
-                //TODO check if in ignore_styles
+                //check if in ignore_styles
+                $home_url = home_url();
+                $home_url_len = strlen($home_url);
+                $check_part = $src;
+                if(strpos($src, $home_url) === 0) {
+                    $check_part = substr($src, $home_url_len);
+                }
+                if(strpos($check_part, '/') ==0) {
+                    $check_part = substr($check_part, 1);
+                }
+                //echo '<!-- CHECK: '.$check_part .'-->';
+                if(in_array($check_part, $ignore_styles)) {
+                    //echo '<!-- IGNORED: '.$handle.' -->' ;
+                    continue;
+                }
+
                 wp_dequeue_style($handle);
 
                 //If has inline, collect
@@ -271,6 +329,10 @@ class ST_CriticalCss {
                     foreach($style->extra['after'] as $after) {
                         $inline_styles .= $after . "\n";
                     }
+                }
+
+                if(!empty($args['uncritical'])) {
+                    continue;
                 }
 
                 $deferred_styles[$handle] = [
@@ -293,20 +355,16 @@ class ST_CriticalCss {
                 }
             },0);
 
-            //Add loadCss polyfill
-            add_action('wp_head', function() {?>
-                <script>
-                    (function(w){"use strict";if(!w.loadCSS){w.loadCSS=function(){}}
-                        var rp=loadCSS.relpreload={};rp.support=(function(){var ret;try{ret=w.document.createElement("link").relList.supports("preload")}catch(e){ret=!1}
-                            return function(){return ret}})();rp.bindMediaToggle=function(link){var finalMedia=link.media||"all";function enableStylesheet(){if(link.addEventListener){link.removeEventListener("load",enableStylesheet)}else if(link.attachEvent){link.detachEvent("onload",enableStylesheet)}
-                            link.setAttribute("onload",null);link.media=finalMedia}
-                            if(link.addEventListener){link.addEventListener("load",enableStylesheet)}else if(link.attachEvent){link.attachEvent("onload",enableStylesheet)}
-                            setTimeout(function(){link.rel="stylesheet";link.media="only x"});setTimeout(enableStylesheet,3000)};rp.poly=function(){if(rp.support()){return}
-                            var links=w.document.getElementsByTagName("link");for(var i=0;i<links.length;i++){var link=links[i];if(link.rel==="preload"&&link.getAttribute("as")==="style"&&!link.getAttribute("data-loadcss")){link.setAttribute("data-loadcss",!0);rp.bindMediaToggle(link)}}};if(!rp.support()){rp.poly();var run=w.setInterval(rp.poly,500);if(w.addEventListener){w.addEventListener("load",function(){rp.poly();w.clearInterval(run)})}else if(w.attachEvent){w.attachEvent("onload",function(){rp.poly();w.clearInterval(run)})}}
-                        if(typeof exports!=="undefined"){exports.loadCSS=loadCSS}
-                        else{w.loadCSS=loadCSS}}(typeof global!=="undefined"?global:this))
-                </script>
-            <?php },11);
+            $this->add_load_css_polyfill();
+        }
+        if(!empty($args['uncritical'])) {
+            $path = 'css_cache' .DIRECTORY_SEPARATOR . basename($args['uncritical']);
+            $src = content_url( $path );
+            ?>
+            <link id="uncritical-css" rel="preload" href="<?= $src; ?>" as="style" onload="this.onload=null;this.rel='stylesheet'">
+            <noscript><link id="<?= $handle; ?>-css" rel="stylesheet" href="<?= $src; ?>"></noscript>
+            <?php
+            $this->add_load_css_polyfill();
         }
 
         //Print extra inline styles
@@ -315,6 +373,23 @@ class ST_CriticalCss {
                 echo '<!-- EXTRA INLINE --><style type="text/css">'.$inline_styles.'</style>';
             },1);
         }
+    }
+
+    public function add_load_css_polyfill() {
+        //Add loadCss polyfill
+        add_action('wp_head', function() {?>
+            <script>
+                (function(w){"use strict";if(!w.loadCSS){w.loadCSS=function(){}}
+                    var rp=loadCSS.relpreload={};rp.support=(function(){var ret;try{ret=w.document.createElement("link").relList.supports("preload")}catch(e){ret=!1}
+                        return function(){return ret}})();rp.bindMediaToggle=function(link){var finalMedia=link.media||"all";function enableStylesheet(){if(link.addEventListener){link.removeEventListener("load",enableStylesheet)}else if(link.attachEvent){link.detachEvent("onload",enableStylesheet)}
+                        link.setAttribute("onload",null);link.media=finalMedia}
+                        if(link.addEventListener){link.addEventListener("load",enableStylesheet)}else if(link.attachEvent){link.attachEvent("onload",enableStylesheet)}
+                        setTimeout(function(){link.rel="stylesheet";link.media="only x"});setTimeout(enableStylesheet,3000)};rp.poly=function(){if(rp.support()){return}
+                        var links=w.document.getElementsByTagName("link");for(var i=0;i<links.length;i++){var link=links[i];if(link.rel==="preload"&&link.getAttribute("as")==="style"&&!link.getAttribute("data-loadcss")){link.setAttribute("data-loadcss",!0);rp.bindMediaToggle(link)}}};if(!rp.support()){rp.poly();var run=w.setInterval(rp.poly,500);if(w.addEventListener){w.addEventListener("load",function(){rp.poly();w.clearInterval(run)})}else if(w.attachEvent){w.attachEvent("onload",function(){rp.poly();w.clearInterval(run)})}}
+                    if(typeof exports!=="undefined"){exports.loadCSS=loadCSS}
+                    else{w.loadCSS=loadCSS}}(typeof global!=="undefined"?global:this))
+            </script>
+        <?php },11);
     }
 
     public static function mkdir($path, $mask = 0775) {
