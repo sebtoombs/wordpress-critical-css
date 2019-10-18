@@ -109,8 +109,8 @@ class ST_CriticalCss {
 
     public function maybe_do_critical() {
 
-        //Do nothing if we're building
-        if(isset($_REQUEST['critical_css'])) return;
+        //Do nothing if we're building, or if is 404
+        if(isset($_REQUEST['critical_css']) || is_404()) return;
 
         // Check cache for critical css file for this page
         $cache_status = $this->check_cache_status();
