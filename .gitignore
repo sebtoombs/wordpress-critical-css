@@ -1,1 +1,3 @@
 debug.log
+admin/app/node_modules/
+admin/app/yarn.lock

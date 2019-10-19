@@ -1,0 +1,32 @@
+{
+  "name": "critical-css",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/sebtoombs/wordpress-critical-css.git",
+  "author": "Seb Toombs <sebtoombs@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "develop": "webpack --progress --colors --watch --mode=development",
+    "build": "webpack --progress --colors -p --config webpack.config.js --mode=production"
+  },
+  "dependencies": {
+    "@babel/polyfill": "^7.6.0",
+    "axios": "^0.19.0",
+    "react": "^16.10.2",
+    "react-dom": "^16.10.2",
+    "styled-components": "^4.4.0",
+    "tailwind.macro": "^1.0.0-alpha.10",
+    "tailwindcss": "^1.1.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.6.4",
+    "@babel/preset-env": "^7.6.3",
+    "@babel/preset-react": "^7.6.3",
+    "babel-loader": "^8.0.6",
+    "babel-plugin-macros": "^2.6.1",
+    "babel-plugin-styled-components": "^1.10.6",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.9"
+  }
+}

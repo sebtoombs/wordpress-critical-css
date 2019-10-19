@@ -1,0 +1,49 @@
+.critical-css-admin .inline-pre {
+  background: #ddd;
+}
+
+.critical-css-admin .heading {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.critical-css-admin .form-group {
+  margin-bottom: 2rem;
+}
+.critical-css-admin .form-group.max-w {
+  max-width: 400px;
+}
+.critical-css-admin .form-group.max-w-input input,
+.critical-css-admin .form-group.max-w-input select,
+.critical-css-admin .form-group.max-w-input textarea,
+.critical-css-admin .form-group.max-w-input .input-with-button {
+  max-width: 400px;
+}
+.critical-css-admin .form-group > * {
+  margin-bottom: 0.5rem;
+  width: 100%;
+}
+.critical-css-admin .form-group .input-with-button {
+  display: flex;
+  align-items:center;
+}
+.critical-css-admin .form-group .input-with-button input {
+  flex-grow: 1;
+}
+.critical-css-admin .form-group label {
+  display: block;
+  font-size: 1rem;
+}
+.critical-css-admin .form-group input,
+.critical-css-admin .form-group textarea,
+.critical-css-admin .form-group select {
+  display: block;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.critical-css-admin .form-group .help {
+  font-size: 0.8rem;
+  color: #666;
+  display: block;
+}

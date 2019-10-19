@@ -20,61 +20,58 @@ $myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
 //$myUpdateChecker->setBranch('release');
 //$myUpdateChecker->getVcsApi()->enableReleaseAssets();
 
+require_once 'includes/class-critical-css-base.php';
+require_once 'includes/class-critical-css-logger.php';
+require_once 'includes/class-critical-css-options.php';
+require_once 'includes/class-critical-css-api.php';
+require_once 'includes/class-critical-css-cache.php';
+
+require_once 'admin/class-admin.php';
+require_once 'admin/class-admin-ajax.php';
+
 class ST_CriticalCss {
 
-    private $opts;
-    private $_defaults;
 
+    private $deps = [];
+    /*private $options; //OPtions class
+    private $api; //Api Class
+    private $cache; //Cache controller class
 
-    private $api_url = 'https://critical-css-gen.herokuapp.com/critical';
+    private $admin; //Admin public
+    private $admin_ajax; //Ajax class*/
 
     public function __construct() {
 
-        //TODO load opts from wp
-        $this->_defaults = [
-            'cache_time'=>0, //time in seconds eg 5 minutes: 300 or 0 for infinite
-            'use_stale'=>true,
-            'api_key'=>false,
-            'ignore_styles'=>[],
-            'use_uncritical'=>true
-        ];
-        $opts = [
-            'api_key'=>'dbe30568-cae1-4169-a5d2-2a724a6725b1',
-            'ignore_styles'=>[
-                'wp-content/themes/storefront/style.css',
-                'https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,300,300italic,400italic,600,700,900&subset=latin%2Clatin-ext',
-                //'wp-content/themes/storefront/assets/css/base/icons.css'
-            ]
-        ];
-        $this->opts = array_merge($this->_defaults, $opts); //TODO load in opts here
+
+        $get_dep = array($this, 'get_dep');
+
+        $this->deps['logger'] = new ST_CriticalCss_Logger($get_dep);
+        $this->deps['options'] = new ST_CriticalCss_Options($get_dep);
+        $this->deps['api'] = new ST_CriticalCss_Api($get_dep);
+        $this->deps['cache'] = new ST_CriticalCss_Cache($get_dep);
+
+        $this->deps['admin'] = new ST_CriticalCss_Admin($get_dep);
+        $this->deps['admin_ajax'] = new ST_CriticalCss_AdminAjax($get_dep);
 
         $this->add_hooks();
     }
 
-    public function get_opt($key, $default=null) {
-        if(isset($this->opts[$key])) {
-            return $this->opts[$key];
+    public function get_dep($name) {
+        if(isset($this->deps[$name])) {
+            return $this->deps[$name];
         }
-        if(!is_null($default) || !isset($this->_defaults[$key])) return $default;
-        return $this->_defaults[$key];
-    }
-
-    function log($log) {
-        $date = new DateTime();
-        $date_fmt= $date->format('Y-m-d H:i:s');
-
-        $log = "[$date_fmt] " . $log ."\n";
-        file_put_contents(plugin_dir_path(__FILE__).'debug.log', $log, FILE_APPEND);
+        return false;
     }
 
     public function add_hooks() {
-        add_action('template_redirect', array($this, 'webhook_listener'));
-        add_action('wp_head', array($this, 'maybe_do_critical'), 7);
+    //    add_action('template_redirect', array($this, 'webhook_listener'));
+    //    add_action('wp_head', array($this, 'maybe_do_critical'), 7);
     }
 
     public function webhook_listener() {
 
         if($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_REQUEST['critical_css'])) return;
+        if(!$this->get_opt('api_key')) return;
         $this->log('Webhook listener started');
         //if(!isset($_REQUEST['critical_css'])) return;
 
@@ -91,7 +88,7 @@ class ST_CriticalCss {
             $this->log('Webhook listener failed - missing data');
             return;
         }
-        if($data['key'] !== 'dbe30568-cae1-4169-a5d2-2a724a6725b1') {
+        if($data['key'] !== $this->get_opt('api_key')) {
             $this->log('Webhook listener failed - invalid key');
             return;
         }
@@ -156,18 +153,7 @@ class ST_CriticalCss {
 
     }
 
-    public function check_cache_status() {
-        $cache_time = $this->get_opt('cache_time');
 
-        $cache_file = $this->get_cache_file_full();
-        $exists = file_exists($cache_file);
-
-        if(!$exists) return 'empty';
-
-        $fresh = ($exists && (filemtime($cache_file) > (time() - $cache_time )));
-
-        return $fresh ? 'fresh' : 'stale';
-    }
 
     public function get_url() {
         global $wp;
@@ -175,32 +161,9 @@ class ST_CriticalCss {
         return $url;
     }
 
-    public function get_cache_file_name($uncritical=false) {
-        $url = $this->get_url();
-        $file_name = $this->sanitise_file_name($url);
-        if($uncritical) $file_name .= '.uncritical';
-        $file_name .= '.css';
-        return $file_name;
-    }
 
-    public function get_cache_file_path() {
-        return WP_CONTENT_DIR . DIRECTORY_SEPARATOR . 'css_cache';
-    }
 
-    public function get_cache_file_full($filename=null) {
-        if($filename === null) $filename = $this->get_cache_file_name();
-        return $this->get_cache_file_path().DIRECTORY_SEPARATOR.$filename;
-    }
 
-    public function sanitise_file_name($file_name) {
-        $filename_raw = $file_name;
-        $special_chars = array("?", "[", "]", "/", "\\", "=", "<", ">", ":", ";", ",", "'", "\"", "&", "$", "#", "*", "(", ")", "|", "~", "`", "!", "{", "}");
-        $special_chars = apply_filters('sanitize_file_name_chars', $special_chars, $filename_raw);
-        $filename = str_replace($special_chars, '', $file_name);
-        $filename = preg_replace('/[\s-]+/', '-', $filename);
-        $filename = trim($filename, '.-_');
-        return apply_filters('sanitize_file_name', $filename, $filename_raw);
-    }
 
 
     public function request_critical() {
@@ -213,7 +176,7 @@ class ST_CriticalCss {
 
         $url = $this->get_url();
         //$response = wp_remote_post('https://critical-css-gen.herokuapp.com/critical', [//'http://localhost:8000/critical',[
-        $response = wp_remote_post($this->api_url,[
+        $response = wp_remote_post($this->api_url.'critical',[
             'method' => 'POST',
             'timeout' => 60,
             'redirection' => 5,
@@ -245,29 +208,12 @@ class ST_CriticalCss {
         $this->save_to_cache($critical_css['css']);*/
     }
 
-    public function save_to_cache($css, $args=null) {
-        $args = is_null($args) ? [] : $args;
 
-        $file_name = null;
-        if(!empty($args['url'])) {
-            $file_name = $this->sanitise_file_name($args['url']);
-        }
-        if(!empty($args['uncritical']) && $file_name) {
-            $file_name .= '.uncritical';
-        }
-        if($file_name) {
-            $file_name .='.css';
-        }
-        //Save to cache
-        file_put_contents($this->get_cache_file_full($file_name), $css, LOCK_EX);
-    }
 
     public function print_critical() {
-        $cache_file = $this->get_cache_file_full();
-        $exists = file_exists($cache_file);
-        if(!$exists) return; //TODO maybe log?
+        $cache = $this->get_dep('cache');
 
-        $critical_css = file_get_contents($cache_file); //TODO check this
+        if(!($critical_css = $cache->get_from_cache())) return;
         ?>
         <!-- INLINE CRITICAL CSS -->
         <style type="text/css">
@@ -289,7 +235,7 @@ class ST_CriticalCss {
         ];
 
         $ignore_styles = array_merge($ignore_admin, $this->get_opt('ignore_styles'));
-        //echo '<!-- IGNORE: '.print_r($ignore_styles, true). '-->';
+        echo '<!-- IGNORE: '.print_r($ignore_styles, true). '-->';
 
         //Collect any inline styles and print them later
         $inline_styles = "";
@@ -321,7 +267,7 @@ class ST_CriticalCss {
                 }
                 //echo '<!-- CHECK: '.$check_part .'-->';
                 if(in_array($check_part, $ignore_styles)) {
-                    //echo '<!-- IGNORED: '.$handle.' -->' ;
+                    echo '<!-- IGNORED: '.$handle.' -->' ;
                     continue;
                 }
 
@@ -408,6 +354,67 @@ class ST_CriticalCss {
     public static function install() {
         self::mkdir(WP_CONTENT_DIR . DIRECTORY_SEPARATOR . 'css_cache');
         touch(plugin_dir_path(__FILE__).'debug.log');
+    }
+
+
+
+
+
+
+
+
+    public function admin_validate_api_key_ajax() {
+        if(!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'critical-css')) {
+            header("HTTP/1.0 400 Bad Request");
+            wp_send_json_error(['message'=>'nonce failed']);
+            exit;
+        }
+
+        if(!isset($_POST['key'])) {
+            header("HTTP/1.0 400 Bad Request");
+            wp_send_json_error(['message'=>'key missing']);
+            exit;
+        }
+
+        $key = $_POST['key'];
+
+        $response = wp_remote_post($this->api_url.'validate',[
+            'method' => 'POST',
+            'timeout' => 60,
+            'redirection' => 5,
+            'blocking' => true,
+            'body' => array(
+                'key' => $key
+            )
+        ]);
+
+        if ( is_wp_error( $response ) ) {
+            header("HTTP/1.0 500 Server Error");
+            wp_send_json_error(['message'=>'failed', 'debug'=>$response]);
+            exit;
+        }
+
+        $data = false;
+        try {
+            $data = json_decode($response['body'], true);
+        } catch(Exception $error) {
+
+        }
+        if(!$data) {
+            header("HTTP/1.0 500 Server Error");
+            wp_send_json_error(['message'=>'failed', 'debug'=>'Failed to parse response body']);
+        }
+
+        if($response['response']['code'] !== 200) {
+            header("HTTP/1.0 ".$response['response']['code']." Bad Request");
+            wp_send_json_error(['message'=>$data['message']]);
+            exit;
+        }
+
+        update_option('critical_css_api_key', $key);
+
+        wp_send_json_success($data);
+        exit;
     }
 }
 $st_critical_css = new ST_CriticalCss();
