@@ -11,7 +11,7 @@ if(!class_exists('ST_CriticalCss_Logger')) {
             $date_fmt= $date->format('Y-m-d H:i:s');
 
             $log = "[$date_fmt] " . $log ."\n";
-            file_put_contents(plugin_dir_path(__FILE__).'debug.log', $log, FILE_APPEND);
+            file_put_contents(plugin_dir_path(__DIR__).'debug.log', $log, FILE_APPEND);
         }
     }
 }

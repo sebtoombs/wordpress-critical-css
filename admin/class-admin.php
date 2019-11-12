@@ -28,7 +28,6 @@ if(!class_exists('ST_CriticalCss_Admin')) {
                 return;
             }
 
-            //$options = $this->get_dep('options');
             ?>
             <div class="wrap critical-css-admin">
                 <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
@@ -43,9 +42,13 @@ if(!class_exists('ST_CriticalCss_Admin')) {
             wp_localize_script('critical-css-admin', 'critical_css_admin', $this->localise_script());
         }
         public function localise_script() {
+            $Api = $this->get_dep('api');
+            $api_key = $Api->get_key();
+
             return [
                 'nonce'=>wp_create_nonce('critical-css'),
-                'ajax_prefix'=>'critical_css_'
+                'ajax_prefix'=>'critical_css_',
+                'has_api_key'=>!!$api_key
             ];
         }
     }

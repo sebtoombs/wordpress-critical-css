@@ -25,6 +25,8 @@ require_once 'includes/class-critical-css-logger.php';
 require_once 'includes/class-critical-css-options.php';
 require_once 'includes/class-critical-css-api.php';
 require_once 'includes/class-critical-css-cache.php';
+require_once 'includes/class-critical-css-status.php';
+require_once 'includes/class-critical-css-frontend.php';
 
 require_once 'admin/class-admin.php';
 require_once 'admin/class-admin-ajax.php';
@@ -49,6 +51,8 @@ class ST_CriticalCss {
         $this->deps['options'] = new ST_CriticalCss_Options($get_dep);
         $this->deps['api'] = new ST_CriticalCss_Api($get_dep);
         $this->deps['cache'] = new ST_CriticalCss_Cache($get_dep);
+        $this->deps['status'] = new ST_CriticalCss_Status($get_dep);
+        $this->deps['frontend'] = new ST_CriticalCss_Frontend($get_dep);
 
         $this->deps['admin'] = new ST_CriticalCss_Admin($get_dep);
         $this->deps['admin_ajax'] = new ST_CriticalCss_AdminAjax($get_dep);
@@ -64,11 +68,11 @@ class ST_CriticalCss {
     }
 
     public function add_hooks() {
-    //    add_action('template_redirect', array($this, 'webhook_listener'));
+     //   add_action('template_redirect', array($this, 'webhook_listener'));
     //    add_action('wp_head', array($this, 'maybe_do_critical'), 7);
     }
 
-    public function webhook_listener() {
+    /*public function webhook_listener() {
 
         if($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_REQUEST['critical_css'])) return;
         if(!$this->get_opt('api_key')) return;
@@ -151,22 +155,15 @@ class ST_CriticalCss {
         // and defer other css
         $this->defer_stylesheets($args);
 
-    }
-
-
-
-    public function get_url() {
-        global $wp;
-        $url = home_url( $wp->request );
-        return $url;
-    }
+    }*/
 
 
 
 
 
 
-    public function request_critical() {
+
+   /* public function request_critical() {
 
         if(!$this->get_opt('api_key')) {
             //TODO log?
@@ -206,11 +203,11 @@ class ST_CriticalCss {
         }
 
         $this->save_to_cache($critical_css['css']);*/
-    }
+ //   }
 
 
 
-    public function print_critical() {
+    /*public function print_critical() {
         $cache = $this->get_dep('cache');
 
         if(!($critical_css = $cache->get_from_cache())) return;
@@ -339,7 +336,7 @@ class ST_CriticalCss {
                     else{w.loadCSS=loadCSS}}(typeof global!=="undefined"?global:this))
             </script>
         <?php },11);
-    }
+    }*/
 
     public static function mkdir($path, $mask = 0775) {
         if ( !@is_dir( $path ) ) {
@@ -356,66 +353,6 @@ class ST_CriticalCss {
         touch(plugin_dir_path(__FILE__).'debug.log');
     }
 
-
-
-
-
-
-
-
-    public function admin_validate_api_key_ajax() {
-        if(!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'critical-css')) {
-            header("HTTP/1.0 400 Bad Request");
-            wp_send_json_error(['message'=>'nonce failed']);
-            exit;
-        }
-
-        if(!isset($_POST['key'])) {
-            header("HTTP/1.0 400 Bad Request");
-            wp_send_json_error(['message'=>'key missing']);
-            exit;
-        }
-
-        $key = $_POST['key'];
-
-        $response = wp_remote_post($this->api_url.'validate',[
-            'method' => 'POST',
-            'timeout' => 60,
-            'redirection' => 5,
-            'blocking' => true,
-            'body' => array(
-                'key' => $key
-            )
-        ]);
-
-        if ( is_wp_error( $response ) ) {
-            header("HTTP/1.0 500 Server Error");
-            wp_send_json_error(['message'=>'failed', 'debug'=>$response]);
-            exit;
-        }
-
-        $data = false;
-        try {
-            $data = json_decode($response['body'], true);
-        } catch(Exception $error) {
-
-        }
-        if(!$data) {
-            header("HTTP/1.0 500 Server Error");
-            wp_send_json_error(['message'=>'failed', 'debug'=>'Failed to parse response body']);
-        }
-
-        if($response['response']['code'] !== 200) {
-            header("HTTP/1.0 ".$response['response']['code']." Bad Request");
-            wp_send_json_error(['message'=>$data['message']]);
-            exit;
-        }
-
-        update_option('critical_css_api_key', $key);
-
-        wp_send_json_success($data);
-        exit;
-    }
 }
 $st_critical_css = new ST_CriticalCss();
 //TODO replace with singleton?

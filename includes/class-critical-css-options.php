@@ -33,7 +33,7 @@ if(!class_exists('ST_CriticalCss_Options')) {
         }
 
         public function set_opt($key, $value, $save=true) {
-            $this->opts[$key] = $value;
+            $this->opts[$key] = $this->parse_option($key, $value);
             if($save !== false) {
                 update_option(self::OPTION_KEY, $this->opts);
             }
@@ -47,6 +47,21 @@ if(!class_exists('ST_CriticalCss_Options')) {
             if($save !==false) {
                 update_option(self::OPTION_KEY, $this->opts);
             }
+        }
+
+        public function reset_options() {
+            return delete_option(self::OPTION_KEY);
+        }
+
+
+        public function parse_option($key, $value) {
+            if($key === 'ignore_styles') {
+                $value = preg_split( '/\r\n|\r|\n/', $value );
+                $value = array_filter($value, function($line) {
+                    return (!empty($line));
+                });
+            }
+            return $value;
         }
     }
 }

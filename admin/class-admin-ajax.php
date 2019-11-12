@@ -5,7 +5,11 @@ if(!class_exists('ST_CriticalCSS_AdminAjax')) {
 
         public $_actions = [
             'get_options',
-            'update_option'
+            'update_option',
+            'delete_options',
+            'get_status',
+            'validate_key',
+            'revoke_key'
         ];
 
         public function init() {
@@ -13,10 +17,9 @@ if(!class_exists('ST_CriticalCSS_AdminAjax')) {
         }
 
         public function add_hooks() {
-            /*foreach($this->_actions as $action) {
+            foreach($this->_actions as $action) {
                 add_action('wp_ajax_critical_css_'.$action, array($this, 'ajax_'.$action));
-            }*/
-            add_action('wp_ajax_critical_css_get_options', array($this, 'ajax_get_options'));
+            }
         }
 
         public function verify_ajax() {
@@ -29,51 +32,108 @@ if(!class_exists('ST_CriticalCSS_AdminAjax')) {
 
 
 
+        public function ajax_success($data=null, $status = 200) {
+            $response = [];
+            http_response_code($status);
+            $response['nonce'] = wp_create_nonce('critical-css');
+            if(isset($data)) {
+                $response['data'] = $data;
+            }
+            wp_send_json($response);
+            exit;
+        }
+        public function ajax_error($error=null, $status=500){
+            http_response_code($status);
+            wp_send_json_error($error);
+            exit;
+        }
 
 
         public function ajax_get_options() {
-            wp_send_json_success(['message'=>'test']);
-            exit;
 
             $this->verify_ajax();
 
-            $options = $this->get_dep('options');
+            $Options = $this->get_dep('options');
 
-            wp_send_json_success($options);
-            exit;
+            $options = $Options->get_all();
+
+            $this->ajax_success($options);
+
         }
 
         public function ajax_update_option() {
             $this->verify_ajax();
 
             if(!isset($_POST['options'])) {
-                wp_send_json_error(['message'=>'options missing']);
-                exit;
+                $this->ajax_error(['message'=>'options missing']);
             }
 
-            //TODO maybe whitelist options?
+            $options = @json_decode( html_entity_decode( stripslashes ($_POST['options'] ) ) );
 
-            $options = $this->get_dep('options');
-
-            //Process options
-
-            $debug = '';
-            $options_to_update = [];
-            foreach($_POST['options'] as $key=>$value) {
-                $sanitised_value = sanitize_option('critical_css_'.$key, $value);
-
-                if($key === 'ignore_styles') {
-                    $sanitised_value = explode(",", $sanitised_value);
-                }
-
-                $options_to_update[$key] = $sanitised_value;
+            if(empty($options)) {
+                $this->ajax_error(['message'=>'invalid options object']);
             }
-            //update_option('critical_css_options', $options_to_update);
-            $options->update_options($options_to_update);
 
 
-            wp_send_json_success(['message'=>'success', 'debug'=>$debug]);
-            exit;
+            $Options = $this->get_dep('options');
+            $Options->update_options($options);
+
+            $this->ajax_success();
+        }
+
+        public function ajax_delete_options() {
+            $this->verify_ajax();
+
+            $Options = $this->get_dep('options');
+
+            $Options->reset_options();
+
+            $this->ajax_success();
+        }
+
+        public function ajax_get_status() {
+            $this->verify_ajax();
+
+            $Status = $this->get_dep('status');
+            $status= $Status->get_status();
+
+            $this->ajax_success($status);
+        }
+
+        public function ajax_validate_key() {
+
+            $this->verify_ajax();
+
+            $key = isset($_POST['key']) ? $_POST['key'] : false;
+
+            if(!$key) {
+                $this->ajax_error(['message'=>'key not set']);
+            }
+
+            $Api = $this->get_dep('api');
+
+            $api_response = $Api->validate_key($key);
+
+            if(!$api_response[0]) $this->ajax_error($api_response);
+
+            $this->ajax_success();
+
+        }
+
+
+        public function ajax_revoke_key() {
+
+            $this->verify_ajax();
+
+            $Api = $this->get_dep('api');
+
+            $api_response = $Api->revoke_key();
+
+            if(!$api_response[0]) $this->ajax_error($api_response);
+
+            $this->ajax_success();
+
+
         }
     }
 }

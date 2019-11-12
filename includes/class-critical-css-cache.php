@@ -7,9 +7,25 @@ if(!class_exists('ST_CriticalCss_Cache')) {
 
         }
 
+        /**
+         * @return array[writable, reason]
+         */
+        public function cache_writable($cache_path=null) {
+            if(is_null($cache_path)) {
+                $cache_path = $cache_path = $this->get_cache_file_full('test.tmp') ;
+            }
+
+            $is_writable = is_writable($cache_path);
+            if($is_writable) return [true]; //Exists
+            $exists = file_exists($cache_path);
+            if($exists) return [false, 'write']; //Exists with no write perms
+            return [false, 'exist']; //Not exists
+        }
+
 
         public function check_cache_status() {
-            $cache_time = $this->get_opt('cache_time');
+            $Options = $this->get_dep('options');
+            $cache_time = $Options->get_opt('cache_time');
 
             $cache_file = $this->get_cache_file_full();
             $exists = file_exists($cache_file);
@@ -49,6 +65,14 @@ if(!class_exists('ST_CriticalCss_Cache')) {
         }
 
         public function save_to_cache($css, $args=null) {
+            $Logger = $this->get_dep('logger');
+
+            $cache_writable = $this->cache_writable();
+            if(!$cache_writable[0]) {
+                $Logger->log('Cache not writable!');
+                return;
+            }
+
             $args = is_null($args) ? [] : $args;
 
             $file_name = null;
@@ -61,8 +85,18 @@ if(!class_exists('ST_CriticalCss_Cache')) {
             if($file_name) {
                 $file_name .='.css';
             }
+            $Logger->log('Saving to cache '.$this->get_cache_file_full($file_name));
+
+            $cache_writable = $this->cache_writable($this->get_cache_file_full($file_name));
+            if(!$cache_writable[0]) {
+                $Logger->log('Cache file not writable!');
+            }
             //Save to cache
-            file_put_contents($this->get_cache_file_full($file_name), $css, LOCK_EX);
+            $write_result = file_put_contents($this->get_cache_file_full($file_name), $css, LOCK_EX);
+
+            if(!$write_result) {
+                $Logger->log('Failed to write to cache');
+            }
         }
 
 
@@ -72,6 +106,8 @@ if(!class_exists('ST_CriticalCss_Cache')) {
             if(!$exists) return; //TODO maybe log?
 
             $critical_css = file_get_contents($cache_file); //TODO check this
+
+            return $critical_css;
         }
     }
 }

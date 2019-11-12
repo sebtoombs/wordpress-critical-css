@@ -15,5 +15,14 @@ if(!class_exists('ST_CriticalCss_Base')) {
         }
 
         public abstract function init();
+
+
+
+        //Utils
+        public function get_url() {
+            global $wp;
+            $url = home_url( $wp->request );
+            return $url;
+        }
     }
 }

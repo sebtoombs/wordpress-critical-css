@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "del": "^5.1.0",
+    "event-stream": "^4.0.1",
+    "gulp": "^4.0.2",
+    "gulp-zip": "^5.0.1"
+  }
+}
